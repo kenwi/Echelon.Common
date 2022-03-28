@@ -1,13 +1,13 @@
 ﻿using HtmlAgilityPack;
 using Echelon.Bot.Models;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class FreakPrivateMessageSystem : IParserSystem<IEnumerable<FreakPrivateMessage>>
+    public class FreakPrivateMessageComponent : IParserComponent<IEnumerable<FreakPrivateMessage>>
     {
         private readonly IServiceProvider provider;
         private readonly IMessageWriter messageWriter;
-        public FreakPrivateMessageSystem(
+        public FreakPrivateMessageComponent(
             IServiceProvider serviceProvider,
             IMessageWriter messageWriter)
         {

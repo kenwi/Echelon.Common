@@ -1,13 +1,13 @@
 ﻿using HtmlAgilityPack;
 using Echelon.Bot.Models;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class NRKSystem : IParserSystem<NRKNewsPost>
+    public class NRKComponent : IParserComponent<NRKNewsPost>
     {
         private readonly IMessageWriter messageWriter;
 
-        public NRKSystem(IMessageWriter messageWriter)
+        public NRKComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

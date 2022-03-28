@@ -38,9 +38,13 @@ namespace Echelon.Bot.Services
                 return Task.CompletedTask;
             };
             client.MessageReceived += Client_MessageReceived;
-            
-            //await commands.AddModulesAsync(Assembly.GetEntryAssembly(), null);
-            await commands.AddModuleAsync<FreakVerification>(null);
+
+            await commands.AddModuleAsync<NoteModule>(null);
+            await commands.AddModuleAsync<VerificationProcessModule>(null);
+            await commands.AddModuleAsync<ActivityModule>(null);
+            await commands.AddModuleAsync<HelpModule>(null);
+            await commands.AddModuleAsync<VerificationModule>(null);
+            await commands.AddModuleAsync<WatchlistModule>(null);
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
         }
@@ -71,20 +75,28 @@ namespace Echelon.Bot.Services
                 services: serviceProvider);
         }
 
+        public async void SetRole(uint userId, string roleName)
+        {
+            var role = client.Guilds
+                ?.FirstOrDefault()
+                ?.Roles
+                ?.FirstOrDefault(u => u.Name == roleName);
+
+            if (client.GetUser(userId) is IGuildUser user)
+                await user.AddRoleAsync(role);
+        }
+
         public async void SendMessage(string message, ulong channelID)
         {
             messageWriter.Write($"DiscordService({channelID}): {message}");
             if (channelID == 0)
                 return;
 
-            var user = await client.GetUserAsync(channelID) as IUser;
-            var channel = await client.GetChannelAsync(channelID) as IMessageChannel;
+            if (await client.GetUserAsync(channelID) is IUser user)
+                await user.SendMessageAsync(message);
 
-            if(user != null)
-                await user!.SendMessageAsync(message);
-            
-            if(channel != null)
-                await channel!.SendMessageAsync(message);
+            if (await client.GetChannelAsync(channelID) is IMessageChannel channel)
+                await channel.SendMessageAsync(message);
         }
     }
 }

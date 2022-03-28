@@ -1,13 +1,13 @@
 ﻿using HtmlAgilityPack;
 using Echelon.Bot.Models;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class FreakKvalitetsPoengSystem : IParserSystem<FreakKvalitetsPoeng>
+    public class FreakKvalitetsPoengComponent : IParserComponent<FreakKvalitetsPoeng>
     {
         private readonly IMessageWriter messageWriter;
 
-        public FreakKvalitetsPoengSystem(IMessageWriter messageWriter)
+        public FreakKvalitetsPoengComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

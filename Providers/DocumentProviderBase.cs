@@ -17,9 +17,7 @@ namespace Echelon.Bot.Providers
         public virtual async Task<HtmlDocument> GetAsync()
         {          
             var web = new HtmlWeb();
-#if DEBUG
             messageWriter.Write($"Requesting {url}");
-#endif
             return await web.LoadFromWebAsync(url);
         }
 

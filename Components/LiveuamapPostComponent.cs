@@ -1,12 +1,12 @@
 ﻿using HtmlAgilityPack;
 using Echelon.Bot.Models;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class LiveuamapPostSystem : IParserSystem<LiveuamapPost> //, IParserSystem<string>
+    public class LiveuamapPostComponent : IParserComponent<LiveuamapPost> //, IParserComponent<string>
     {
         private readonly IMessageWriter messageWriter;
-        public LiveuamapPostSystem(IMessageWriter messageWriter)
+        public LiveuamapPostComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

@@ -1,8 +1,8 @@
 ﻿using HtmlAgilityPack;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public interface IParserSystem<T>
+    public interface IParserComponent<T>
     {
         public T Execute(HtmlDocument document);
     }

@@ -6,10 +6,17 @@ using System.Threading.Tasks;
 
 namespace Echelon.Bot.Models
 {
+    public enum OutboundMessageType
+    {
+        Discord,
+        Freak
+    }
+
     public class OutboundMessage
     {
-        public string Text { get; set; }
+        public OutboundMessageType MessageType { get; set; }
+        public string? Text { get; set; }
         public ulong TargetID { get; set; }
-        public string Caller { get; set; }
+        public string? Caller { get; set; }
     }
 }

@@ -2,14 +2,15 @@
 using Discord.WebSocket;
 using Echelon.Bot.Models;
 using Echelon.Bot.Providers;
-using Echelon.Bot.Systems;
+using Echelon.Bot.Components;
+using Microsoft.Extensions.Configuration;
 
 namespace Echelon.Bot.Services
 {
-    public class FreakPrivateMessageService :
-        TimedServiceBase<FreakPrivateMessageProvider, FreakPrivateMessageSystem, IEnumerable<FreakPrivateMessage>>
+    public class FreakVerificationService :
+        TimedServiceBase<FreakPrivateMessageProvider, FreakPrivateMessageComponent, IEnumerable<FreakPrivateMessage>>
     {
-        public FreakPrivateMessageService(
+        public FreakVerificationService(
             IServiceProvider serviceProvider,
             IMessageWriter messageWriter)
             : base(serviceProvider, messageWriter)
@@ -57,8 +58,8 @@ namespace Echelon.Bot.Services
                     continue;
 
                 var userId = ulong.Parse(id);
-                var queueSystem = serviceProvider.GetRequiredService<QueueSystem>();
-                queueSystem.QueueMessage(new OutboundMessage
+                var queue = serviceProvider.GetRequiredService<QueueComponent>();
+                queue.QueueMessage(new OutboundMessage
                 {
                     TargetID = userId,
                     Text = $"Verifisering av Discord: {discordUsername} / Freak: {m.Sender} vellykket!",
@@ -68,8 +69,17 @@ namespace Echelon.Bot.Services
 
                 var content = await File.ReadAllTextAsync("verified.txt");
                 content = content.Replace(m.Title, $"{m.Title}\t{m.Sender}\tOK");
-
+                
                 await File.WriteAllTextAsync("verified.txt", content);
+
+                var configuration = serviceProvider.GetRequiredService<IConfigurationRoot>();
+                var modsChannelId = configuration.GetValue<ulong>("modsChannelId");
+                queue.QueueMessage(new OutboundMessage
+                {
+                    TargetID = modsChannelId,
+                    Text = $"User successfully verified discord: {discordUsername} / freak: {m.Sender}",
+                    Caller = GetServiceName()
+                });
             }
         }
     }

@@ -7,7 +7,7 @@
 
     public class FreakPrivateMessage : IMessage
     {
-        public int MessageCount { get; set; }
+        //public int MessageCount { get; set; }
         public string? Title { get; set; }
         public string? Message { get; set; }
 

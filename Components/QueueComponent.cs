@@ -1,9 +1,9 @@
 ﻿using Echelon.Bot.Models;
 using System.Collections.Concurrent;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class QueueSystem
+    public class QueueComponent
     {
         private readonly IMessageWriter messageWriter;
         private readonly string logFile = "log.txt";
@@ -11,7 +11,7 @@ namespace Echelon.Bot.Systems
         private readonly ConcurrentQueue<OutboundMessage> outboundMessages = new();
         private readonly static ReaderWriterLockSlim readerWriterLockSlim = new();
 
-        public QueueSystem(IMessageWriter messageWriter)
+        public QueueComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

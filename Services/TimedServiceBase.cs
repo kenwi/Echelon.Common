@@ -1,16 +1,16 @@
 ﻿using Echelon.Bot.Providers;
-using Echelon.Bot.Systems;
+using Echelon.Bot.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 namespace Echelon.Bot.Services
 {
-    public abstract class TimedServiceBase<TProvider, TParserSystem, IMessage> :
+    public abstract class TimedServiceBase<TProvider, TParserComponent, IMessage> :
         TimedServiceBase
         where TProvider : DocumentProviderBase
-        where TParserSystem : IParserSystem<IMessage>
+        where TParserComponent : IParserComponent<IMessage>
     {
-        protected IMessage message;
+        protected IMessage? message;
 
         protected TimedServiceBase(
             IServiceProvider serviceProvider, 
@@ -26,9 +26,8 @@ namespace Echelon.Bot.Services
 
             var provider = serviceProvider.GetRequiredService<TProvider>();
             var document = await provider.GetAsync();
-            var system = serviceProvider.GetRequiredService<TParserSystem>();
-
-            this.message = system.Execute(document);
+            var parser = serviceProvider.GetRequiredService<TParserComponent>();
+            this.message = parser.Execute(document);
         }
     }
 

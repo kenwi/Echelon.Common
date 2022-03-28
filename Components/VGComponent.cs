@@ -1,13 +1,13 @@
 ﻿using HtmlAgilityPack;
 using Echelon.Bot.Models;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class VGSystem : IParserSystem<VGNewsPost>
+    public class VGComponent : IParserComponent<VGNewsPost>
     {
         private readonly IMessageWriter messageWriter;
 
-        public VGSystem(IMessageWriter messageWriter)
+        public VGComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

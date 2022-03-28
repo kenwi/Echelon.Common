@@ -4,15 +4,15 @@ using Echelon.Bot.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class FreakPostSystem : IParserSystem<FreakPost>
+    public class FreakPostComponent : IParserComponent<FreakPost>
     {
         private readonly IServiceProvider provider;
         private readonly IMessageWriter messageWriter;
         private readonly string stringReplacement;
 
-        public FreakPostSystem(
+        public FreakPostComponent(
             IConfigurationRoot configuration,
             IServiceProvider serviceProvider,
             IMessageWriter messageWriter)

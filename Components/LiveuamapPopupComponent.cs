@@ -1,11 +1,11 @@
 ﻿using HtmlAgilityPack;
 
-namespace Echelon.Bot.Systems
+namespace Echelon.Bot.Components
 {
-    public class LiveuamapPopupSystem : IParserSystem<string?>
+    public class LiveuamapPopupComponent : IParserComponent<string?>
     {
         private readonly IMessageWriter messageWriter;
-        public LiveuamapPopupSystem(IMessageWriter messageWriter)
+        public LiveuamapPopupComponent(IMessageWriter messageWriter)
         {
             this.messageWriter = messageWriter;
         }

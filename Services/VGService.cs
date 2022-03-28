@@ -1,6 +1,6 @@
 ﻿using Echelon.Bot.Models;
 using Echelon.Bot.Providers;
-using Echelon.Bot.Systems;
+using Echelon.Bot.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Echelon.Bot.Services
@@ -8,16 +8,16 @@ namespace Echelon.Bot.Services
     public class VGService : TimedServiceBase
     {
         private readonly IDocumentProvider documentProvider;
-        private readonly VGSystem system;
+        private readonly VGComponent component;
         private readonly ulong channelId = 0;
         public VGService(
-            VGSystem system,
+            VGComponent component,
             VGProvider documentProvider,
             IServiceProvider serviceProvider,
             IMessageWriter messageWriter) 
             : base(serviceProvider, messageWriter)
         {
-            this.system = system;
+            this.component = component;
             this.documentProvider = documentProvider;
             this.updateInterval = 5;
         }
@@ -27,9 +27,9 @@ namespace Echelon.Bot.Services
             messageWriter.Write(GetServiceName());
 
             var document = await documentProvider.GetAsync();
-            var newsPost = system.Execute(document);
-            var queueSystem = serviceProvider.GetRequiredService<QueueSystem>();
-            queueSystem.QueueMessage(new OutboundMessage
+            var newsPost = component.Execute(document);
+            var queue = serviceProvider.GetRequiredService<QueueComponent>();
+            queue.QueueMessage(new OutboundMessage
             {
                 TargetID = channelId,
                 Text = newsPost.ToString(),

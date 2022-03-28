@@ -2,6 +2,6 @@
 {
     public void Write(string message)
     {
-        Console.WriteLine($"[{DateTime.Now}] {message}");
+        Console.WriteLine($"[{DateTime.Now}] {message.ReplaceLineEndings($"{Environment.NewLine}[{DateTime.Now}] ")}");
     }
 }
