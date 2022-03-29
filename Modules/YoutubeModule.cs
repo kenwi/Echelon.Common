@@ -21,8 +21,9 @@ namespace Echelon.Bot.Services
             if (!Context.IsMessageFromMusicChannel() && !Context.IsMessageFromDevelopmentChannel())
                 return;
 
-            var isValidLink = url.ToLower().StartsWith("https://") || url.ToLower().StartsWith("http://");
-            var isYoutube = url.ToLower().Contains("youtube.com/watch") || url.ToLower().Contains("youtu.be/");
+            url = url.ToLower();
+            var isValidLink = url.StartsWith("https://") || url.StartsWith("http://");
+            var isYoutube = url.Contains("youtube.com/watch") || url.Contains("youtu.be/");
             if (!isValidLink && !isYoutube)
                 return;
 
