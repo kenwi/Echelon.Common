@@ -44,9 +44,10 @@ namespace Echelon.Bot.Services
             }
             catch (Exception ex)
             {
+                var messageWriter = serviceProvider.GetRequiredService<IMessageWriter>();
+                messageWriter.Write(ex.ToString());
                 throw;
             }
-
         }
 
         [Command("off")]
@@ -72,6 +73,8 @@ namespace Echelon.Bot.Services
             }
             catch (Exception ex)
             {
+                var messageWriter = serviceProvider.GetRequiredService<IMessageWriter>();
+                messageWriter.Write(ex.ToString());
                 throw;
             }
         }
