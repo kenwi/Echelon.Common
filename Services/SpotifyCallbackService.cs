@@ -17,8 +17,8 @@ namespace Echelon.Bot.Services
             this.messageWriter = messageWriter;
 
             var spotifyCallbackUri  = new Uri(configuration["Spotify-CallbackUri"]);
-            var spotifyCaallbackUriPort = int.Parse(configuration["Spotify-CallbackUri-Port"]);            
-            server = new EmbedIOAuthServer(spotifyCallbackUri, spotifyCaallbackUriPort);
+            var spotifyCallbackUriPort = int.Parse(configuration["Spotify-CallbackUri-Port"]);            
+            server = new EmbedIOAuthServer(spotifyCallbackUri, spotifyCallbackUriPort);
         }
 
         public string CreateLoginRequestUri()
