@@ -75,7 +75,7 @@ namespace Echelon.Bot.Services
         
         public async Task SaveItems(Dictionary<string, SpotifyItem> items)
         {
-            var fileContent = JsonSerializer.Serialize(items);
+            var fileContent = JsonSerializer.Serialize(items, new JsonSerializerOptions{ WriteIndented = true });
             await File.WriteAllTextAsync(jsonFile, fileContent);
         }
         
