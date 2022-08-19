@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Auth;
+using System.Text.Json;
 
 namespace Echelon.Bot.Services
 {
@@ -22,43 +23,17 @@ namespace Echelon.Bot.Services
             var spotifyCallbackUriPort = int.Parse(configuration["Spotify-CallbackUri-Port"]);
             
             server = new EmbedIOAuthServer(spotifyCallbackUri, spotifyCallbackUriPort);
-            server.AuthorizationCodeReceived += OnAuthorizationCodeReceived;
             messageWriter.Write("SpotifyCallbackService Started");
         }
 
-        private async Task OnAuthorizationCodeReceived(object sender, AuthorizationCodeResponse response)
-        {
-            var clientId = configuration["Spotify-ClientId"];
-            var clientSecret = configuration["Spotify-ClientSecret"];
-            var uri = new Uri(configuration["Spotify-CallbackUri-Public"]);
-
-            var config = SpotifyClientConfig.CreateDefault();
-            var tokenResponse = await new OAuthClient()
-                .RequestToken(new AuthorizationCodeTokenRequest(clientId, clientSecret, response.Code, uri));
-
-            var spotifyService = serviceProvider.GetRequiredService<SpotifyService>();
-            spotifyService.SpotifyClient = new SpotifyClient(tokenResponse.AccessToken);
-
-            var jsonService = serviceProvider.GetRequiredService<JsonService>();
-            var items = await jsonService.GetItems();
-            
-            var selectedItem = items.Where(i => i.Value.AccessCode == "").FirstOrDefault();
-            
-            items[selectedItem.Key].AccessCode = tokenResponse.AccessToken;
-            items[selectedItem.Key].ResponseCode = response.Code;
-
-            await jsonService.SaveItems(items);
-
-            messageWriter.Write("Received Authorization Code");
-            await server.Stop();
-        }
-
-        public string CreateLoginRequestUri()
+        public string CreateLoginRequestUri(string challenge)
         {
             var spotifyCallbackUriPublic = new Uri(configuration["Spotify-CallbackUri-Public"]);
             var clientId = configuration["Spotify-ClientId"];
             var loginRequest = new LoginRequest(spotifyCallbackUriPublic, clientId, LoginRequest.ResponseType.Code)
             {
+                CodeChallenge = challenge,
+                CodeChallengeMethod = "S256",
                 Scope = new[] {
                     Scopes.PlaylistModifyPrivate,
                     Scopes.PlaylistModifyPublic,
@@ -75,9 +50,32 @@ namespace Echelon.Bot.Services
             return Task.CompletedTask;
         }
 
-        public void Start()
+        public async Task StartAuthorizationProcess(string verifier, string challenge)
         {
-            server.Start();
+            var clientId = configuration["Spotify-ClientId"];
+            await server.Start();
+            server.AuthorizationCodeReceived += async (sender, response) =>
+            {
+                try
+                {
+                    var jsonService = serviceProvider.GetRequiredService<JsonService>();
+                    var channels = await jsonService.GetItems();
+                    var selectedChannel = channels.Where(i => i.Value.Challenge == challenge).FirstOrDefault();
+                    
+                    PKCETokenResponse token = await new OAuthClient().RequestToken(
+                      new PKCETokenRequest(clientId!, response.Code, new Uri(configuration["Spotify-CallbackUri-Public"]), verifier)
+                    );
+                    channels[selectedChannel.Key].Token = JsonSerializer.Serialize<PKCETokenResponse>(token);
+                    
+                    await jsonService.SaveItems(channels);
+                    await server.Stop();
+                    messageWriter.Write("Received authorization for " + selectedChannel.Value.ChannelId);
+                }
+                catch(Exception ex)
+                {
+                    messageWriter.Write(ex.Message);
+                }
+            };
             messageWriter.Write("Started authentication server");
         }
 

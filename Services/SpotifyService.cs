@@ -1,5 +1,9 @@
-﻿using SpotifyAPI.Web;
+﻿using Echelon.Bot.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using SpotifyAPI.Web;
 using SpotifyAPI.Web.Auth;
+using System.Text.Json;
 
 namespace Echelon.Bot.Services
 {
@@ -7,13 +11,15 @@ namespace Echelon.Bot.Services
     {
         private readonly IServiceProvider serviceProvider;
         private readonly IMessageWriter messageWriter;
+        private readonly IConfigurationRoot configuration;
 
         public SpotifyClient? SpotifyClient { get; set; }
 
-        public SpotifyService(IServiceProvider serviceProvider, IMessageWriter messageWriter)
+        public SpotifyService(IServiceProvider serviceProvider, IMessageWriter messageWriter, IConfigurationRoot configuration)
         {
             this.serviceProvider = serviceProvider;
             this.messageWriter = messageWriter;
+            this.configuration = configuration;
             messageWriter.Write("SpotifyClient Started");
         }
 
@@ -25,10 +31,28 @@ namespace Echelon.Bot.Services
                     .Last()
                     .Split("?")
                     .First();
+                
+                var clientId = configuration["Spotify-ClientId"];
+                var jsonService = serviceProvider.GetRequiredService<JsonService>();
+                var channels = await jsonService.GetItems();
+                var selectedChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId);
+                
+                var jsonToken = selectedChannel.Value.Token;
+                if (string.IsNullOrEmpty(jsonToken))
+                    return false;
+                var token = JsonSerializer.Deserialize<PKCETokenResponse>(jsonToken);
+                
+                var authenticator = new PKCEAuthenticator(clientId!, token!);
+                authenticator.TokenRefreshed += async (sender, token) =>
+                {
+                    channels[selectedChannel.Key].Token = JsonSerializer.Serialize<PKCETokenResponse>(token);
+                    await jsonService.SaveItems(channels);
+                };
 
-                if (SpotifyClient is null)
-                    SpotifyClient = new SpotifyClient(accessCode);
-                                
+                var config = SpotifyClientConfig.CreateDefault()
+                    .WithAuthenticator(authenticator);
+                SpotifyClient = new SpotifyClient(config);                
+
                 var track = await SpotifyClient.Tracks.Get(trackId);
                 await SpotifyClient.Playlists.AddItems(playListId, new PlaylistAddItemsRequest(new[] { track.Uri }));
             }

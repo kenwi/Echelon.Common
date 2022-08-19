@@ -3,6 +3,7 @@ using Echelon.Bot.Models;
 using Echelon.Common.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using SpotifyAPI.Web;
 
 namespace Echelon.Bot.Services
 {
@@ -24,7 +25,7 @@ namespace Echelon.Bot.Services
             await ReplyAsync("Please provide a channel-id and playlist-id or link to a playlist"
                 + "```!spotify register <discord-channel-id> <spotify-playlist-id-or-link>```"
                 + "For this specific channel example: "
-                + $"```!spotify register {channelId} https://open.spotify.com/playlist/6tWMX0Hf2An9rP9vwAKNmP?si=8ac2538637684e3c```");
+                + $"```!spotify register {channelId} https://open.spotify.com/playlist/4a16Ug0LyXkAAlVZah5X2k?si=0e79cae526094196```");
         }
 
         [Command("register")]
@@ -68,19 +69,24 @@ namespace Echelon.Bot.Services
                 if (!items.ContainsKey(channelId))
                 {
                     var callbackService = serviceProvider.GetRequiredService<SpotifyCallbackService>();
-                    var uri = callbackService.CreateLoginRequestUri();
-                    var code = uri.Split("code=").Last();
-                    callbackService.Start();
-
+                    
+                    var (verifier, challenge) = PKCEUtil.GenerateCodes();
+                    var uri = callbackService.CreateLoginRequestUri(challenge);
+                   
                     items.Add(channelId, new SpotifyItem
                     {
                         ChannelId = channelId,
                         PlaylistId = playlistId,
                         OwnerId = Context.User.Id.ToString(),
                         OwnerName = Context.User.Username,
-                        ServerName = Context.Guild.Name
+                        ServerName = Context.Guild.Name,
+                        Challenge = challenge
                     });
                     await jsonService.SaveItems(items);
+
+                    var code = uri.Split("code=").Last();
+                    await callbackService.StartAuthorizationProcess(verifier, challenge);
+                                        
                     await ReplyAsync($"Registered channel **{channelId}** with playlist **{playlistId}**. Please verify your Spotify account with the link received by PM");
                                         
                     var discordService = serviceProvider.GetRequiredService<DiscordService>();

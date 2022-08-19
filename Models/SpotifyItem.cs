@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using SpotifyAPI.Web;
+using System.Text.Json;
 
 namespace Echelon.Bot.Models
 {
@@ -9,8 +10,10 @@ namespace Echelon.Bot.Models
         public string OwnerId { get; set; } = "";
         public string AccessCode { get; set; } = "";
         public string ResponseCode { get; set; } = "";
+        public string Challenge { get; set; } = "";
         public string OwnerName { get; set; } = "";
         public string ServerName { get; set; } = "";
+        public string? Token {get; set;} = null;
     }
 }
 
