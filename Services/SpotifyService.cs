@@ -5,11 +5,15 @@ namespace Echelon.Bot.Services
 {
     public class SpotifyService
     {
-        public SpotifyClient SpotifyClient { get; set; }
+        private readonly IServiceProvider serviceProvider;
+        private readonly IMessageWriter messageWriter;
 
-        public SpotifyService(IServiceProvider serviceProvider
-            , IMessageWriter messageWriter)
+        public SpotifyClient? SpotifyClient { get; set; }
+
+        public SpotifyService(IServiceProvider serviceProvider, IMessageWriter messageWriter)
         {
+            this.serviceProvider = serviceProvider;
+            this.messageWriter = messageWriter;
             messageWriter.Write("SpotifyClient Started");
         }
 
@@ -47,6 +51,9 @@ namespace Echelon.Bot.Services
             }
             catch (Exception ex)
             {
+                messageWriter.Write(ex.Message);
+                if(!string.IsNullOrEmpty(ex.StackTrace))
+                    messageWriter.Write(ex.StackTrace);                
                 return false;
             }
             return true;

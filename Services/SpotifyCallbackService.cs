@@ -43,8 +43,10 @@ namespace Echelon.Bot.Services
             var items = await jsonService.GetItems();
             
             var selectedItem = items.Where(i => i.Value.AccessCode == "").FirstOrDefault();
-            items[selectedItem.Key].AccessCode = tokenResponse.AccessToken;
             
+            items[selectedItem.Key].AccessCode = tokenResponse.AccessToken;
+            items[selectedItem.Key].ResponseCode = response.Code;
+
             await jsonService.SaveItems(items);
 
             messageWriter.Write("Received Authorization Code");

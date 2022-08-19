@@ -1,4 +1,5 @@
 ﻿using Discord.Commands;
+using Echelon.Bot.Models;
 using Echelon.Common.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -136,6 +137,12 @@ namespace Echelon.Bot.Services
             if (items.ContainsKey(Context.Channel.Id.ToString()))
             {
                 items.TryGetValue(Context.Channel.Id.ToString(), out var item);
+                if(item is null)
+                {
+                    messageWriter.Write("Failed getting item");
+                    return;
+                }
+                
                 await spotifyService.PlayNextSong(item.AccessCode);
                 await ReplyAsync("Playing next track");
             }
