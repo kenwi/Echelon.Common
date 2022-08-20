@@ -12,11 +12,19 @@ namespace Echelon.Bot.Services
     {
         private readonly IServiceProvider serviceProvider;
         private readonly IMessageWriter messageWriter;
+        private readonly JsonService jsonService;
+        private readonly SpotifyCallbackService callbackService;
+        private readonly SpotifyService spotifyService;
 
         public SpotifyModule(IServiceProvider serviceProvider, IMessageWriter messageWriter)
-        {            
+        {
             this.serviceProvider = serviceProvider;
             this.messageWriter = messageWriter;
+
+            jsonService = serviceProvider.GetRequiredService<JsonService>();
+            callbackService = serviceProvider.GetRequiredService<SpotifyCallbackService>();
+            spotifyService = serviceProvider.GetRequiredService<SpotifyService>();
+
             messageWriter.Write("SpotifyModule Started");
         }
 
@@ -36,97 +44,34 @@ namespace Echelon.Bot.Services
 
             try
             {
-                if (channelId.Length < 10)
-                {
-                    PrintHelp(Context.Channel.Id);
-                    return;
-                }
-
-                if(playlistId.StartsWith("https://open.spotify.com/playlist/"))
-                {
-                    playlistId = playlistId.Split("/")
-                        .Last()
-                        .Split("?")
-                        .First();
-                    
-                    if(string.IsNullOrEmpty(playlistId))
-                    {
-                        await ReplyAsync($"Invalid spotify playlist link");
-                        PrintHelp(Context.Channel.Id);
-                        return;
-                    }
-                }
-                else
-                {
-                    await ReplyAsync($"Invalid spotify playlist link");
-                    PrintHelp(Context.Channel.Id);
-                    return;
-                }
-
-                var jsonService = serviceProvider.GetRequiredService<JsonService>();
                 var items = await jsonService.GetItems();
+                var (verifier, challenge) = PKCEUtil.GenerateCodes();
+                var uri = callbackService.CreateLoginRequestUri(challenge);
 
-                if (!items.ContainsKey(channelId))
+                items.Add(Context.Channel.Id.ToString(), new SpotifyItem
                 {
-                    var callbackService = serviceProvider.GetRequiredService<SpotifyCallbackService>();
-                    
-                    var (verifier, challenge) = PKCEUtil.GenerateCodes();
-                    var uri = callbackService.CreateLoginRequestUri(challenge);
-                   
-                    items.Add(channelId, new SpotifyItem
-                    {
-                        ChannelId = channelId,
-                        PlaylistId = playlistId,
-                        OwnerId = Context.User.Id.ToString(),
-                        OwnerName = Context.User.Username,
-                        ServerName = Context.Guild.Name,
-                        Challenge = challenge
-                    });
-                    await jsonService.SaveItems(items);
+                    ChannelId = Context.Channel.Id.ToString(),
+                    ChannelName = Context.Channel.Name,
+                    PlaylistId = playlistId,
+                    OwnerId = Context.User.Id.ToString(),
+                    OwnerName = Context.User.Username,
+                    ServerName = Context.Guild.Name,
+                    Challenge = challenge
+                });
+                await jsonService.SaveItems(items);
 
-                    var code = uri.Split("code=").Last();
-                    await callbackService.StartAuthorizationProcess(verifier, challenge);
-                                        
-                    await ReplyAsync($"Registered channel **{channelId}** with playlist **{playlistId}**. Please verify your Spotify account with the link received by PM");
-                                        
-                    var discordService = serviceProvider.GetRequiredService<DiscordService>();
-                    discordService.SendMessage($"Please login to Spotify with this link: {uri}", Context.User.Id, true);
-                }
-                else
-                {
-                    await ReplyAsync($"Channel **{channelId}** is already registered");
-                }
+                var code = uri.Split("code=").Last();
+                await callbackService.StartAuthorizationProcess(verifier, challenge);
+
+                await ReplyAsync($"Registered channel **{Context.Channel.Name}**. Please verify your Spotify account with the link received by PM");
+
+                var discordService = serviceProvider.GetRequiredService<DiscordService>();
+                discordService.SendMessage($"Please login to Spotify with this link: {uri}", Context.User.Id, true);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 messageWriter.Write(ex.Message);
             }
-        }
-        
-        
-        [Command("play")]
-        public async Task Play(string url)
-        {
-            if (!Context.IsUserInModeratorRole())
-                return;
-
-            var service = serviceProvider.GetRequiredService<SpotifyService>();
-            await Task.Delay(1);
-            //var items = await JsonUtils.GetItems();
-
-            //if (items.ContainsKey(Context.Channel.Id.ToString()))
-            //{
-            //    items.TryGetValue(Context.Channel.Id.ToString(), out var item);
-
-            //    if (!await service.PlaySong(item.AccessCode, url))
-            //    {
-            //        var link = service.CreateLoginRequestUri();
-            //        await ReplyAsync("Please authorize with this link: " + link);
-
-            //    }
-            //    else
-            //        await ReplyAsync($"Added song  to queue");
-            //}
         }
 
         [Command("next")]
@@ -135,58 +80,18 @@ namespace Echelon.Bot.Services
             if (!Context.IsUserInModeratorRole())
                 return;
 
-            var spotifyService = serviceProvider.GetRequiredService<SpotifyService>();
-            
-            var jsonService = serviceProvider.GetRequiredService<JsonService>();
             var items = await jsonService.GetItems();
-            
             if (items.ContainsKey(Context.Channel.Id.ToString()))
             {
                 items.TryGetValue(Context.Channel.Id.ToString(), out var item);
-                if(item is null)
+                if (item is null)
                 {
                     messageWriter.Write("Failed getting item");
                     return;
                 }
-                
-                await spotifyService.PlayNextSong(item.AccessCode);
+                await spotifyService.PlayNextSong(Context.Channel.Id.ToString());
                 await ReplyAsync("Playing next track");
             }
-        }
-
-        [Command("playlist")]
-        public async Task PlaylistAsync(string playlistId)
-        {
-            if (!Context.IsUserInModeratorRole())
-                return;
-
-            var channelId = Context.Channel.Id.ToString();
-            var serverName = Context.Guild.Name;
-            await Task.Delay(1);
-
-            //var items = await JsonUtils.GetItems();
-
-            //if (items.ContainsKey(channelId))
-            //{
-            //    await ReplyAsync("This channel is already added");
-            //    return;
-            //}
-
-            //var service = serviceProvider.GetRequiredService<SpotifyService>();
-            ////var link = service.CreateLoginRequestUri();
-            ////Console.WriteLine(link);
-
-            //var item = new SpotifyItem
-            //{
-            //    ChannelId = channelId,
-            //    PlaylistId = playlistId,
-            //    AccessCode = "",
-            //};
-            //items.Add(item.ChannelId, item);        
-
-
-            //await JsonUtils.WriteItems(items);
-            //await ReplyAsync("Added channel to application. Please authorize with this link: " + link);
         }
     }
 }

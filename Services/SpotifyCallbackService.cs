@@ -11,18 +11,28 @@ namespace Echelon.Bot.Services
     {
         private readonly IConfigurationRoot configuration;
         private readonly IMessageWriter messageWriter;
-        private readonly IServiceProvider serviceProvider;
-        EmbedIOAuthServer server;
+        
+        private readonly string clientId;
+        private readonly string callbackUri;
+        private readonly int callbackPort;
+        private readonly JsonService jsonService;
+        private readonly SpotifyService spotifyService;
+        private readonly DiscordService discordService;
+        EmbedIOAuthServer? server;
 
         public SpotifyCallbackService(IConfigurationRoot configuration, IMessageWriter messageWriter, IServiceProvider serviceProvider)
         {
             this.configuration = configuration;
             this.messageWriter = messageWriter;
-            this.serviceProvider = serviceProvider;
-            var spotifyCallbackUri = new Uri(configuration["Spotify-CallbackUri"]);
-            var spotifyCallbackUriPort = int.Parse(configuration["Spotify-CallbackUri-Port"]);
+
+            this.clientId = configuration["Spotify-ClientId"];
+            this.callbackUri = configuration["Spotify-CallbackUri-Public"];
+            this.callbackPort = int.Parse(configuration["Spotify-CallbackUri-Port"]);
+
+            this.jsonService = serviceProvider.GetRequiredService<JsonService>();
+            this.spotifyService = serviceProvider.GetRequiredService<SpotifyService>();
+            this.discordService = serviceProvider.GetRequiredService<DiscordService>();            
             
-            server = new EmbedIOAuthServer(spotifyCallbackUri, spotifyCallbackUriPort);
             messageWriter.Write("SpotifyCallbackService Started");
         }
 
@@ -52,36 +62,42 @@ namespace Echelon.Bot.Services
 
         public async Task StartAuthorizationProcess(string verifier, string challenge)
         {
-            var clientId = configuration["Spotify-ClientId"];
-            await server.Start();
-            server.AuthorizationCodeReceived += async (sender, response) =>
+            try
             {
-                try
+                server = new EmbedIOAuthServer(new Uri(callbackUri), callbackPort);
+                await server.Start();
+                server.AuthorizationCodeReceived += async (sender, response) =>
                 {
-                    var jsonService = serviceProvider.GetRequiredService<JsonService>();
                     var channels = await jsonService.GetItems();
-                    var selectedChannel = channels.Where(i => i.Value.Challenge == challenge).FirstOrDefault();
-                    
-                    PKCETokenResponse token = await new OAuthClient().RequestToken(
-                      new PKCETokenRequest(clientId!, response.Code, new Uri(configuration["Spotify-CallbackUri-Public"]), verifier)
+                    var currentChannel = channels.FirstOrDefault(i => i.Value.Challenge == challenge);
+                    var (channelId, channelName, serverName) = (currentChannel.Value.ChannelId, currentChannel.Value.ChannelName, currentChannel.Value.ServerName);
+                    var playlistName = $"{serverName} - {channelName}";
+                    var key = currentChannel.Key;
+
+                    var token = await new OAuthClient().RequestToken(
+                        new PKCETokenRequest(clientId!, response.Code, new Uri(callbackUri), verifier)
                     );
-                    channels[selectedChannel.Key].Token = JsonSerializer.Serialize<PKCETokenResponse>(token);
-                    
+                    channels[key].Token = token;
                     await jsonService.SaveItems(channels);
-                    await server.Stop();
-                    messageWriter.Write("Received authorization for " + selectedChannel.Value.ChannelId);
-                }
-                catch(Exception ex)
-                {
-                    messageWriter.Write(ex.Message);
-                }
-            };
+
+                    var playlist = await spotifyService.CreatePlaylist(playlistName, channelId);
+                    channels[key].PlaylistId = playlist.Id!;
+                    await jsonService.SaveItems(channels);
+
+                    discordService.SendMessage($"Registered playlist **{playlistName}** {Environment.NewLine}https://open.spotify.com/playlist/{playlist.Id}", ulong.Parse(channelId));
+                    messageWriter.Write("Received authorization for " + currentChannel.Value.ChannelId);
+                };
+            }
+            catch (Exception ex)
+            {
+                messageWriter.Write(ex.Message);
+            }
             messageWriter.Write("Started authentication server");
         }
 
         public void Stop()
         {
-            server.Stop();
+            server?.Stop();
             messageWriter.Write("Stopped authentication server");
         }
     }
