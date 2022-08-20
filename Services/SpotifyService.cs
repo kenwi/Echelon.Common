@@ -9,7 +9,7 @@ namespace Echelon.Bot.Services
         private readonly IMessageWriter messageWriter;
         private readonly string clientId;
         private readonly JsonService jsonService;
-
+        
         public SpotifyClient? SpotifyClient { get; set; }
 
         public SpotifyService(IServiceProvider serviceProvider, IMessageWriter messageWriter, IConfigurationRoot configuration)
@@ -26,13 +26,14 @@ namespace Echelon.Bot.Services
         {
             var channels = await jsonService.GetItems();
             var currentChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId);
+            var key = currentChannel.Key;
             var token = currentChannel.Value.Token;
 
             var authenticator = new PKCEAuthenticator(clientId!, token!);
             authenticator.TokenRefreshed += async (sender, token) =>
             {
-                channels[currentChannel.Key].TokenUpdated = DateTime.Now;
-                channels[currentChannel.Key].Token = token;
+                channels[key].TokenUpdated = DateTime.Now;
+                channels[key].Token = token;
 
                 await jsonService.SaveItems(channels);
             };
@@ -71,13 +72,13 @@ namespace Echelon.Bot.Services
                 await InitializeClient(channelId);
                 var track = await SpotifyClient!.Tracks.Get(trackId);
                 await SpotifyClient.Playlists.AddItems(playListId, new PlaylistAddItemsRequest(new[] { track.Uri }));
+                return true;
             }
             catch (Exception ex)
             {
                 messageWriter.Write(ex.Message);
                 return false;
             }
-            return true;
         }
         
         public async Task<bool> PlayNextSong(string channelId)
@@ -86,6 +87,7 @@ namespace Echelon.Bot.Services
             {
                 await InitializeClient(channelId);
                 await SpotifyClient!.Player!.SkipNext();
+                return true;
             }
             catch (Exception ex)
             {
@@ -94,9 +96,7 @@ namespace Echelon.Bot.Services
                     messageWriter.Write(ex.StackTrace);                
                 return false;
             }
-            return true;
         }
-
     }
 }
 
