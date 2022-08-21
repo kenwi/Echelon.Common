@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Echelon.Bot.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using System.Text.Json;
 
@@ -60,20 +61,20 @@ namespace Echelon.Bot.Services
             }
         }
 
-        public async Task<Dictionary<string, SpotifyItem>> GetItems()
+        public async Task<Dictionary<ulong, SpotifyItem>> GetChannels()
         {
             var fileContent = await File.ReadAllTextAsync(jsonFile);
             if (string.IsNullOrEmpty(fileContent))
-                return new Dictionary<string, SpotifyItem>();
+                return new Dictionary<ulong, SpotifyItem>();
 
-            var value = JsonSerializer.Deserialize<Dictionary<string, SpotifyItem>>(fileContent);
+            var value = JsonSerializer.Deserialize<Dictionary<ulong, SpotifyItem>>(fileContent);
             if (value == null)
-                value = new Dictionary<string, SpotifyItem>();
+                value = new Dictionary<ulong, SpotifyItem>();
             
             return value;
         }
         
-        public async Task SaveItems(Dictionary<string, SpotifyItem> items)
+        public async Task SaveChannels(Dictionary<ulong, SpotifyItem> items)
         {
             var fileContent = JsonSerializer.Serialize(items, new JsonSerializerOptions{ WriteIndented = true });
             await File.WriteAllTextAsync(jsonFile, fileContent);
