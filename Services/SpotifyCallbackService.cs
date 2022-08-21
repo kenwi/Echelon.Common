@@ -59,7 +59,7 @@ namespace Echelon.Bot.Services
             return Task.CompletedTask;
         }
 
-        public async Task StartAuthorizationProcess(string verifier, string challenge)
+        public async Task StartAuthorizationProcess(string verifier, string challenge, string playlistName = "")
         {
             try
             {
@@ -72,7 +72,7 @@ namespace Echelon.Bot.Services
                     var channel = channels.FirstOrDefault(i => i.Value.Challenge == challenge).Value;
                     var channelId = channel.ChannelId;
                     var (channelName, serverName) = (channel.ChannelName, channel.ServerName);
-                    var playlistName = $"{serverName} - {channelName}";
+                    playlistName = string.IsNullOrEmpty(playlistName) ? $"{serverName} - {channelName}" : playlistName;
 
                     var token = await new OAuthClient().RequestToken(
                         new PKCETokenRequest(clientId!, response.Code, new Uri(callbackUri), verifier)
@@ -80,10 +80,10 @@ namespace Echelon.Bot.Services
                     channels[channelId].Token = token;
                     await jsonService.SaveChannels(channels);
 
-                    var playlist = await spotifyService.CreatePlaylist(playlistName, ulong.Parse(channelId));
+                    var playlist = await spotifyService.CreatePlaylist(playlistName, channelId);
                     if(playlist is null)
                     {
-                        discordService.SendMessage("Could not create playlist", ulong.Parse(channelId));
+                        discordService.SendMessage("Could not create playlist", channelId);
                         return;
                     }
 
@@ -91,7 +91,7 @@ namespace Echelon.Bot.Services
                     channels[channelId].PlaylistName = playlist.Name!;
                     await jsonService.SaveChannels(channels);
 
-                    discordService.SendMessage($"Registered playlist **{playlistName}** {Environment.NewLine}https://open.spotify.com/playlist/{playlist.Id}", ulong.Parse(channelId));
+                    discordService.SendMessage($"Registered playlist **{playlistName}** {Environment.NewLine}https://open.spotify.com/playlist/{playlist.Id}", channelId);
                     messageWriter.Write("Received authorization for " + channelId);
                     await server.Stop();
                 };            

@@ -25,7 +25,7 @@ namespace Echelon.Bot.Services
         async Task InitializeClient(ulong channelId)
         {
             var channels = await jsonService.GetChannels();
-            var currentChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId.ToString());
+            var currentChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId);
             var key = currentChannel.Key;
             var token = currentChannel.Value.Token;
 
