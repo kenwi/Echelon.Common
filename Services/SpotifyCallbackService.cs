@@ -48,6 +48,7 @@ namespace Echelon.Bot.Services
                     Scopes.PlaylistReadCollaborative,
                     Scopes.PlaylistReadPrivate,
                     Scopes.Streaming,
+                    Scopes.UserReadEmail
                 }
             };
             return loginRequest.ToUri().ToString();
@@ -67,24 +68,32 @@ namespace Echelon.Bot.Services
 
                 server.AuthorizationCodeReceived += async (sender, response) =>
                 {
-                    var channels = await jsonService.GetItems();
-                    var currentChannel = channels.FirstOrDefault(i => i.Value.Challenge == challenge);
-                    var (channelId, channelName, serverName) = (currentChannel.Value.ChannelId, currentChannel.Value.ChannelName, currentChannel.Value.ServerName);
+                    var channels = await jsonService.GetChannels();
+                    var channel = channels.FirstOrDefault(i => i.Value.Challenge == challenge).Value;
+                    var channelId = channel.ChannelId;
+                    var (channelName, serverName) = (channel.ChannelName, channel.ServerName);
                     var playlistName = $"{serverName} - {channelName}";
-                    var key = currentChannel.Key;
 
                     var token = await new OAuthClient().RequestToken(
                         new PKCETokenRequest(clientId!, response.Code, new Uri(callbackUri), verifier)
                     );
-                    channels[key].Token = token;
-                    await jsonService.SaveItems(channels);
+                    channels[channelId].Token = token;
+                    await jsonService.SaveChannels(channels);
 
-                    var playlist = await spotifyService.CreatePlaylist(playlistName, channelId);
-                    channels[key].PlaylistId = playlist.Id!;
-                    await jsonService.SaveItems(channels);
+                    var playlist = await spotifyService.CreatePlaylist(playlistName, ulong.Parse(channelId));
+                    if(playlist is null)
+                    {
+                        discordService.SendMessage("Could not create playlist", ulong.Parse(channelId));
+                        return;
+                    }
+
+                    channels[channelId].PlaylistId = playlist.Id!;
+                    channels[channelId].PlaylistName = playlist.Name!;
+                    await jsonService.SaveChannels(channels);
 
                     discordService.SendMessage($"Registered playlist **{playlistName}** {Environment.NewLine}https://open.spotify.com/playlist/{playlist.Id}", ulong.Parse(channelId));
-                    messageWriter.Write("Received authorization for " + currentChannel.Value.ChannelId);
+                    messageWriter.Write("Received authorization for " + channelId);
+                    await server.Stop();
                 };            
                 messageWriter.Write("Started authentication server. Waiting for authentication reply");
             }

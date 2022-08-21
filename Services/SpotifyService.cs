@@ -22,10 +22,10 @@ namespace Echelon.Bot.Services
             messageWriter.Write("SpotifyClient Started");
         }
 
-        async Task InitializeClient(string channelId)
+        async Task InitializeClient(ulong channelId)
         {
-            var channels = await jsonService.GetItems();
-            var currentChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId);
+            var channels = await jsonService.GetChannels();
+            var currentChannel = channels.FirstOrDefault(c => c.Value.ChannelId == channelId.ToString());
             var key = currentChannel.Key;
             var token = currentChannel.Value.Token;
 
@@ -35,7 +35,7 @@ namespace Echelon.Bot.Services
                 channels[key].TokenUpdated = DateTime.Now;
                 channels[key].Token = token;
 
-                await jsonService.SaveItems(channels);
+                await jsonService.SaveChannels(channels);
             };
 
             var config = SpotifyClientConfig.CreateDefault()
@@ -43,24 +43,37 @@ namespace Echelon.Bot.Services
             SpotifyClient = new SpotifyClient(config);
         }
 
-        public async Task<FullPlaylist> CreatePlaylist(string name, string channelId)
+        public async Task<FullPlaylist> CreatePlaylist(string name, ulong channelId)
         {
             try
             {
                 await InitializeClient(channelId);
+
                 var user = await SpotifyClient!.UserProfile.Current();
                 var playlist = await SpotifyClient.Playlists.Create(user.Id, new PlaylistCreateRequest(name));
                 await SpotifyClient.Playlists.ChangeDetails(playlist.Id!, new PlaylistChangeDetailsRequest() { Public = false, Collaborative = true });
                 return playlist;
             }
+            catch(APIException ex)
+            {
+                messageWriter.Write(ex.Message);
+
+                var response = ex?.Response?.Body?.ToString();
+                if(!string.IsNullOrEmpty(response))
+                    messageWriter.Write(response);
+                
+                throw new Exception(response);
+            }
             catch (Exception ex)
             {
                 messageWriter.Write(ex.Message);
+                messageWriter.Write(ex.HResult.ToString());
+
                 return null!;
             }
         }
 
-        public async Task<bool> AddSong(string link, string channelId, string playListId)
+        public async Task<bool> AddSong(string link, ulong channelId, string playListId)
         {
             try
             {
@@ -81,7 +94,7 @@ namespace Echelon.Bot.Services
             }
         }
         
-        public async Task<bool> PlayNextSong(string channelId)
+        public async Task<bool> PlayNextSong(ulong channelId)
         {
             try
             {
@@ -96,6 +109,26 @@ namespace Echelon.Bot.Services
                     messageWriter.Write(ex.StackTrace);                
                 return false;
             }
+        }
+
+        public async Task<bool> RenamePlaylist(ulong channelId, string playlistId, string newName)
+        {
+            try
+            {
+                await InitializeClient(channelId);
+                await SpotifyClient!.Playlists.ChangeDetails(playlistId, new PlaylistChangeDetailsRequest() { Name = newName });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                messageWriter.Write(ex.Message);
+                return false;
+            }
+        }
+
+        internal Task GetPlaylist(string playlistId)
+        {
+            throw new NotImplementedException();
         }
     }
 }
