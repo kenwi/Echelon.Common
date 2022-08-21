@@ -2,9 +2,8 @@
 using Discord.Commands;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.Reflection;
-using System.Text;
 
 namespace Echelon.Bot.Services
 {
@@ -16,7 +15,11 @@ namespace Echelon.Bot.Services
         private readonly IMessageWriter messageWriter;
         private readonly CommandService commands;
         private readonly Random rng = new Random((int)DateTime.Now.Ticks);
+        private bool hasAlreadyFailed = false;
+        public ConnectionState ConnectionState => client.ConnectionState;
+        public DiscordSocketClient Client => client;
 
+        
         public DiscordService(
             IConfigurationRoot configuration,
             IServiceProvider serviceProvider,
@@ -26,13 +29,17 @@ namespace Echelon.Bot.Services
             this.serviceProvider = serviceProvider;
             this.messageWriter = messageWriter;
             this.commands = new CommandService();
+
+#if RELEASE
             CreateDirectoriesIfNotExist();
+#endif
         }
 
         private void CreateDirectoriesIfNotExist()
         {
             var paths = new[] { "/data/Logs", "/data/Logs/PM", "mc-inbound" }.ToList();
-            paths.ForEach(directory => {
+            paths.ForEach(directory =>
+            {
                 if (!Directory.Exists(directory))
                 {
                     Directory.CreateDirectory(directory);
@@ -40,9 +47,6 @@ namespace Echelon.Bot.Services
                 }
             });
         }
-
-        public ConnectionState ConnectionState => client.ConnectionState;
-        public DiscordSocketClient Client => client;
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -55,24 +59,14 @@ namespace Echelon.Bot.Services
                 return Task.CompletedTask;
             };
             client.MessageReceived += Client_MessageReceived;
-            client.ReactionAdded += Client_ReactionAdded;
-            client.MessageDeleted += Client_MessageDeleted;
-            client.UserJoined += Client_UserJoined;
-            client.UserLeft += Client_UserLeft;
+            //client.ReactionAdded += Client_ReactionAdded;
+            //client.MessageDeleted += Client_MessageDeleted;
+            //client.UserJoined += Client_UserJoined;
+            //client.UserLeft += Client_UserLeft;
 #elif DEBUG
-            client.JoinedGuild += Client_JoinedGuild;
-            client.GuildScheduledEventUserAdd += Client_GuildScheduledEventUserAdd;
-            client.GuildMembersDownloaded += Client_GuildMembersDownloaded;
-            client.GuildMemberUpdated += Client_GuildMemberUpdated;
-            client.ReactionAdded += Client_ReactionAdded;
-            client.MessageDeleted += Client_MessageDeleted;
-            client.UserUpdated += Client_UserUpdated;
-            client.PresenceUpdated += Client_PresenceUpdated;
-            client.MessageUpdated += Client_MessageUpdated;
-            client.RoleUpdated += Client_RoleUpdated;
-            client.ButtonExecuted += Client_ButtonExecuted;
+            client.MessageReceived += Client_MessageReceived;
 #endif
-
+            await commands.AddModuleAsync<SpotifyModule>(serviceProvider);
             await commands.AddModuleAsync<YoutubeModule>(null);
             await commands.AddModuleAsync<NoteModule>(null);
             await commands.AddModuleAsync<VerificationProcessModule>(null);
@@ -81,41 +75,40 @@ namespace Echelon.Bot.Services
             await commands.AddModuleAsync<VerificationModule>(null);
             await commands.AddModuleAsync<WatchlistModule>(null);
             await commands.AddModuleAsync<NotificationModule>(null);
+
             await client.LoginAsync(TokenType.Bot, token);
             await client.StartAsync();
+            messageWriter.Write("Connected to Discord");
         }
 
         private async Task Client_MessageReceived(SocketMessage messageParam)
         {
-            var message = messageParam as SocketUserMessage;
+            
+           var message = messageParam as SocketUserMessage;
             if (message == null)
+            {
+                messageWriter.Write("Null message");
                 return;
-
-            if (message.Channel is not null)
-            {
-                var channel = message.Channel.Name;
-                var filename = Path.Join("/data/", "Logs", $"{channel}.log");
-                await File.AppendAllTextAsync(filename, $"[{DateTime.Now}] [{channel}] {message.Content}{Environment.NewLine}");
-
-                if (channel.Contains("minecraft-"))
-                {                    
-                    var path = Path.Join("/app", "mc-inbound", $"{rng.Next()}-chat.txt");
-                    var minecraftMessage = $"<{message.Author.Username}> {message.Content}";
-
-                    if(message.Author.Username != "Echelon")
-                    {
-                        await File.AppendAllTextAsync(path, minecraftMessage);
-                    }
-                }
             }
 
-            if (message.Author is not null)
-            {
-                var user = message.Author.Username;
 
-                var filename = Path.Join("/data", "Logs", "PM", $"{user}.log");
-                await File.AppendAllTextAsync(filename, $"[{DateTime.Now}] [{user}] {message.Content}{Environment.NewLine}");
+            var channel = message.Channel as SocketGuildChannel;
+            var serverName = channel?.Guild.Name;
+            var channelName = message.Channel.Name;
+
+            var replace = new string[] { @"\", "@", "$", "#", "£", "(", ")" };
+            for (var i = 0; i < replace.Length; i++)
+            {
+                serverName = serverName?.Replace(replace[i], "");
+                channelName = channelName?.Replace(replace[i], "");
             }
+
+#if RELEASE
+            await ExecuteLogging(messageParam);
+#endif
+
+            if (!message.Content.StartsWith("!"))
+                await ParseSocketMessageSpotify(messageParam);
 
             // Create a number to track where the prefix ends and the command begins
             int argPos = 0;
@@ -134,6 +127,111 @@ namespace Echelon.Bot.Services
                 context: context,
                 argPos: argPos,
                 services: serviceProvider);
+        }
+
+        private async Task ExecuteLogging(SocketMessage message)
+        {
+            var channel = message.Channel as SocketGuildChannel;
+            if(channel is null)
+            {
+                messageWriter.Write("Received PM");
+                if (message.Author is not null)
+                {
+                    var user = message.Author.Username;
+                    await File.AppendAllTextAsync(Path.Join("/data", "Logs", "PM", $"{user}.log"), $"[{DateTime.Now}] [{user}] {message.Content}{Environment.NewLine}");
+                    return;
+                }                
+            }
+            
+            var serverName = channel?.Guild.Name;
+            var channelName = message.Channel.Name;
+            var userName = message.Author!.Username;
+
+            var replace = new string[] { @"\", "@", "$", "#", "£", "(", ")" };
+            for (var i = 0; i < replace.Length; i++)
+            {
+                serverName = serverName?.Replace(replace[i], "");
+                channelName = channelName?.Replace(replace[i], "");
+                userName = userName?.Replace(replace[i], "");
+            }
+
+            var directory = Path.Join("/data/", "Logs", serverName);
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                messageWriter.Write($"Created {directory} directory");
+            }
+
+            var filename = Path.Join("/data/", "Logs", serverName, $"{channelName}.log");
+            await File.AppendAllTextAsync(filename, $"[{DateTime.Now}] [{channelName}] {message.Content}{Environment.NewLine}");
+
+            if (string.IsNullOrEmpty(channelName))
+                return;
+
+            if (channelName.Contains("minecraft-"))
+            {
+                var path = Path.Join("/app", "mc-inbound", $"{rng.Next()}-chat.txt");
+                //var stringReplacements = configuration.GetValue<Dictionary<string, string>>("minecraftStringReplacements");
+                //stringReplacements.TryGetValue(message.Author.Username, out string? minecraftNick);
+                var minecraftMessage = $"<{message.Author.Username}> {message.Content}";
+                if (!message.Author.IsBot)
+                    await File.AppendAllTextAsync(path, minecraftMessage);
+            }
+        }
+
+        private async Task ParseSocketMessageSpotify(SocketMessage messageParam)
+        {
+            if (messageParam is not SocketUserMessage message)
+                return;
+
+            try
+            {
+                var jsonService = serviceProvider.GetRequiredService<JsonService>();
+                var spotifyService = serviceProvider.GetRequiredService<SpotifyService>();
+                var channels = await jsonService.GetChannels();
+                var channelId = message.Channel.Id;
+
+                if (!message.Content.Contains("https://open.spotify.com/track/"))
+                    return;
+
+                var link = message.Content
+                    .Split(" ")
+                    .Where(word => word.Contains("https://open.spotify.com/track"))
+                    .FirstOrDefault();
+
+                if (string.IsNullOrEmpty(link))
+                    link = message.Content;
+
+                channels.TryGetValue(channelId, out var channel);
+                if (channel is null)
+                    return;
+
+                if (string.IsNullOrEmpty(channel.ChannelName))
+                {
+                    channels[channelId].ChannelName = message.Channel.Name;
+                    await jsonService.SaveChannels(channels);
+                    messageWriter.Write("Updated channel name");
+                }
+                
+                if (!await spotifyService.AddSong(link, channelId, channel.PlaylistId))
+                {
+                    if (!hasAlreadyFailed)
+                    {
+                        SendMessage("Failed", message.Channel.Id);
+                        hasAlreadyFailed = true;
+                    }
+                    messageWriter.Write("Failed " + message.Channel.Id);
+                    return;
+                }
+                
+                SendMessage("Added track to playlist", message.Channel.Id);
+            }
+            catch (Exception ex)
+            {
+                messageWriter.Write(ex.Message);
+                if(!string.IsNullOrEmpty(ex.StackTrace))
+                    messageWriter.Write(ex.StackTrace);
+            }
         }
 
         public async void SetRole(uint userId, string roleName)
@@ -172,81 +270,5 @@ namespace Echelon.Bot.Services
             }
             messageWriter.Write($"DiscordService({messageType}:{channelID}): {message}");
         }
-
-
-        private Task Client_JoinedGuild(SocketGuild arg)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_GuildScheduledEventUserAdd(Cacheable<SocketUser, Discord.Rest.RestUser, IUser, ulong> arg1, SocketGuildEvent arg2)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_GuildMembersDownloaded(SocketGuild arg)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_ButtonExecuted(SocketMessageComponent arg)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_RoleUpdated(SocketRole arg1, SocketRole arg2)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_GuildMemberUpdated(Cacheable<SocketGuildUser, ulong> arg1, SocketGuildUser arg2)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_MessageUpdated(Cacheable<IMessage, ulong> arg1, SocketMessage arg2, ISocketMessageChannel arg3)
-        {
-            //NotifyMessage($"Message updated: {user.Username}");
-            return Task.CompletedTask;
-        }
-
-        private Task Client_PresenceUpdated(SocketUser user, SocketPresence arg2, SocketPresence arg3)
-        {
-            NotifyMessage($"Presence updated: {user.Username}");
-            return Task.CompletedTask;
-        }
-
-        private Task Client_UserUpdated(SocketUser arg1, SocketUser arg2)
-        {
-            return Task.CompletedTask;
-        }
-
-        private Task Client_UserLeft(SocketGuild arg1, SocketUser user)
-        {
-            NotifyMessage($"User left: {user.Username}");
-            return Task.CompletedTask;
-        }
-
-        private Task Client_UserJoined(SocketGuildUser user)
-        {
-            NotifyMessage($"User joined: {user.Username}");
-            return Task.CompletedTask;
-        }
-
-        private Task Client_MessageDeleted(Cacheable<IMessage, ulong> message, Cacheable<IMessageChannel, ulong> channel)
-        {
-            NotifyMessage($"A message was deleted in #{channel.Value.Name}");
-            return Task.CompletedTask;
-        }
-
-        private Task Client_ReactionAdded(Cacheable<IUserMessage, ulong> arg1, Cacheable<IMessageChannel, ulong> arg2, SocketReaction arg3)
-        {
-            //var filename = Path.Join("Logs", message.Channel.Name.Replace("#", "") + "-" + id + ".log");
-            //await File.AppendAllTextAsync(filename, "DateTime\tChannel\tUser\tContent" + Environment.NewLine);
-            //await File.AppendAllTextAsync(filename, msg);
-
-            return Task.CompletedTask;
-        }        
     }
 }
-
