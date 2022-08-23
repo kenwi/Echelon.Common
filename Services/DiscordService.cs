@@ -162,11 +162,11 @@ namespace Echelon.Bot.Services
                 messageWriter.Write($"Created {directory} directory");
             }
 
-            var filename = Path.Join("/data/", "Logs", serverName, $"{channelName}.log");
-            await File.AppendAllTextAsync(filename, $"[{DateTime.Now}] [{channelName}] {message.Content}{Environment.NewLine}");
-
             if (string.IsNullOrEmpty(channelName))
                 return;
+
+            var filename = Path.Join("/data/", "Logs", serverName, $"{channelName}.log");
+            await File.AppendAllTextAsync(filename, $"[{DateTime.Now}] [{channelName}] [{userName}] {message.Content}{Environment.NewLine}");
 
             if (channelName.Contains("minecraft-"))
             {
@@ -224,7 +224,8 @@ namespace Echelon.Bot.Services
                     return;
                 }
                 
-                SendMessage("Added track to playlist", message.Channel.Id);
+                if(channel.IsVerbose)
+                    SendMessage("Added track to playlist", message.Channel.Id);
             }
             catch (Exception ex)
             {
