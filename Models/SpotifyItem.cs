@@ -13,7 +13,7 @@ namespace Echelon.Bot.Models
         public string Challenge { get; set; } = "";
         public string OwnerName { get; set; } = "";
         public string ServerName { get; set; } = "";
-        
+        public bool IsVerbose { get; set; } = true;
         public PKCETokenResponse? Token { get; set;} = null;
         public DateTime TokenUpdated { get; internal set; }
     }

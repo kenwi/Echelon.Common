@@ -223,6 +223,34 @@ namespace Echelon.Bot.Services
                 messageWriter.Write(ex.Message);
             }
         }
+
+        [Command("verbose")]
+        public async Task Verbose(bool isVerbose)
+        {
+            if (!Context.IsUserInModeratorRole())
+                return;
+
+            try
+            {
+                var channels = await jsonService.GetChannels();
+                if (!channels.TryGetValue(Context.Channel.Id, out var channel))
+                {
+                    messageWriter.Write("Failed getting item");
+                    return;
+                }
+
+                channel.IsVerbose = isVerbose;
+                channels[channel.ChannelId] = channel;
+                await jsonService.SaveChannels(channels);
+
+                var message = isVerbose ? $"Bot is now verbose" : $"Bot is now silent";
+                await ReplyAsync(message);
+            }
+            catch (Exception ex)
+            {
+                messageWriter.Write(ex.Message);
+            }
+        }
     }
 }
 
